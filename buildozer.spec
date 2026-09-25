@@ -9,8 +9,9 @@ requirements = python3==3.11.9, hostpython3==3.11.9, kivy==2.3.1, cython<3.0, te
 orientation = portrait
 fullscreen = 0
 android.permissions = INTERNET
-android.api = 33
+android.api = 30
 android.minapi = 24
-android.archs = arm64-v8a, armeabi-v7a
+android.archs = arm64-v8a
 android.accept_sdk_license = True
-p4a.branch = master
+android.log_level = 2
+p4a.branch = develop
