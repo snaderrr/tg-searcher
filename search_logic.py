@@ -1,10 +1,7 @@
 import asyncio
-from telethon import TelegramClient, functions
-from telethon.tl.types import (
-    InputMessagesFilterPhotos,
-    InputMessagesFilterVideo,
-    Channel, Chat
-)
+from pyrogram import Client
+from pyrogram.raw import functions
+from pyrogram.raw.types import InputMessagesFilterPhotos, InputMessagesFilterVideo, Channel, Chat
 
 
 class TelegramSearcher:
@@ -15,33 +12,31 @@ class TelegramSearcher:
         self.client = None
 
     async def connect(self):
-        self.client = TelegramClient(self.session_name, self.api_id, self.api_hash)
+        self.client = Client(self.session_name, api_id=self.api_id, api_hash=self.api_hash)
         await self.client.start()
 
     async def disconnect(self):
         if self.client:
-            await self.client.disconnect()
+            await self.client.stop()
 
     async def get_creation_date(self, entity):
         if isinstance(entity, Channel) and entity.date:
             return entity.date
-        try:
-            msgs = await self.client.get_messages(entity, limit=1, reverse=True)
-            if msgs:
-                return msgs[0].date
-        except Exception:
-            pass
         return None
 
     async def count_media(self, entity):
         try:
-            photos = await self.client.get_messages(
-                entity, limit=0, filter=InputMessagesFilterPhotos()
+            photos = await self.client.invoke(
+                functions.messages.SearchRequest(
+                    peer=entity, q='', filter=InputMessagesFilterPhotos(), limit=0
+                )
             )
-            videos = await self.client.get_messages(
-                entity, limit=0, filter=InputMessagesFilterVideo()
+            videos = await self.client.invoke(
+                functions.messages.SearchRequest(
+                    peer=entity, q='', filter=InputMessagesFilterVideo(), limit=0
+                )
             )
-            return photos.total, videos.total
+            return photos.count, videos.count
         except Exception:
             return 0, 0
 
@@ -55,12 +50,12 @@ class TelegramSearcher:
             if progress:
                 progress(f"Поиск: {q} ({i+1}/{len(queries)})")
             try:
-                res = await self.client(functions.contacts.SearchRequest(
-                    q=q, limit=100
-                ))
-                for peer in res.chats:
-                    if isinstance(peer, (Chat, Channel)):
-                        found[peer.id] = peer
+                res = await self.client.invoke(
+                    functions.contacts.SearchRequest(q=q, limit=100)
+                )
+                for chat in res.chats:
+                    if isinstance(chat, (Chat, Channel)):
+                        found[chat.id] = chat
                 await asyncio.sleep(1)
             except Exception as e:
                 if progress:
@@ -99,36 +94,3 @@ class TelegramSearcher:
         if progress:
             progress(f"Готово! Найдено: {len(results)}")
         return results
-
-
-async def main():
-    API_ID = int(input("API_ID: "))
-    API_HASH = input("API_HASH: ")
-
-    searcher = TelegramSearcher(API_ID, API_HASH)
-    await searcher.connect()
-
-    results = await searcher.search_groups(
-        queries=[
-            'мои фото', 'наши фото', 'мои видео', 'наши видео',
-            'семейные фото', 'фото семьи'
-        ],
-        keywords=['фото', 'видео', 'мои', 'наши', 'семейн'],
-        max_year=2023,
-        min_photos=5,
-        min_videos=0,
-        progress=lambda msg: print(msg)
-    )
-
-    print("\n" + "=" * 50)
-    for r in results:
-        print(f"{r['title']}")
-        print(f"  создана: {r['created']} | фото: {r['photos']} | видео: {r['videos']}")
-        print(f"  ссылка: {r['link']}")
-        print("-" * 50)
-
-    await searcher.disconnect()
-
-
-if __name__ == '__main__':
-    asyncio.run(main())

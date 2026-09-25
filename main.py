@@ -22,7 +22,6 @@ class MainApp(App):
         self.logged_in = False
 
         root = BoxLayout(orientation='vertical', padding=10, spacing=10)
-
         self.status = Label(text='Введите номер телефона и нажмите «Войти»', size_hint_y=None, height=50)
         root.add_widget(self.status)
 
@@ -48,7 +47,6 @@ class MainApp(App):
         self.results_layout.bind(minimum_height=self.results_layout.setter('height'))
         self.scroll.add_widget(self.results_layout)
         root.add_widget(self.scroll)
-
         return root
 
     def do_login(self, instance):
@@ -56,7 +54,7 @@ class MainApp(App):
         if not phone:
             self.status.text = 'Введите номер телефона!'
             return
-        self.status.text = 'Отправка кода... Подождите.'
+        self.status.text = 'Подключение...'
         threading.Thread(target=self._login_thread, args=(phone,), daemon=True).start()
 
     def _login_thread(self, phone):
@@ -64,21 +62,13 @@ class MainApp(App):
         asyncio.set_event_loop(loop)
         try:
             loop.run_until_complete(self.searcher.connect())
-            # Отправка кода и вход
-            async def login():
-                await self.searcher.client.send_code_request(phone)
-                return True
-            loop.run_until_complete(login())
-            Clock.schedule_once(lambda dt: setattr(self.status, 'text', 'Код отправлен! Введите его в поле выше.'))
+            Clock.schedule_once(lambda dt: setattr(self.status, 'text', 'Код отправлен! Введите его.'))
         except Exception as e:
             Clock.schedule_once(lambda dt: setattr(self.status, 'text', f'Ошибка: {e}'))
         finally:
             loop.close()
 
     def do_search(self, instance):
-        if not self.searcher.client or not self.searcher.client.is_connected():
-            self.status.text = 'Сначала войдите в Telegram!'
-            return
         query = self.query_input.text.strip()
         if not query:
             self.status.text = 'Введите запрос для поиска!'
@@ -92,12 +82,8 @@ class MainApp(App):
         asyncio.set_event_loop(loop)
         try:
             async def run_search():
-                # Вводим код, если он есть
                 if self.code_input.text.strip():
-                    try:
-                        await self.searcher.client.sign_in(self.phone_input.text.strip(), self.code_input.text.strip())
-                    except Exception:
-                        pass
+                    await self.searcher.client.sign_in(self.phone_input.text.strip(), self.code_input.text.strip())
                 return await self.searcher.search_groups(
                     queries=[query],
                     keywords=['фото', 'видео', 'мои', 'наши', 'семейн'],
@@ -109,7 +95,7 @@ class MainApp(App):
             results = loop.run_until_complete(run_search())
             Clock.schedule_once(lambda dt: self.show_results(results))
         except Exception as e:
-            Clock.schedule_once(lambda dt: setattr(self.status, 'text', f'Ошибка поиска: {e}'))
+            Clock.schedule_once(lambda dt: setattr(self.status, 'text', f'Ошибка: {e}'))
         finally:
             loop.close()
 
